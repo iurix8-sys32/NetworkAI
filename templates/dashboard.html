@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f1419;
+            color: #e7e9ea;
+            min-height: 100vh;
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 20px 30px;
+            border-bottom: 1px solid #2f3336;
+        }
+        
+        .header h1 {
+            color: #00d4ff;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .status-bar {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .status-item {
+            background: rgba(0, 212, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        .status-item.connected {
+            color: #00ff88;
+            border: 1px solid #00ff88;
+        }
+        
+        .status-item.disconnected {
+            color: #ff4757;
+            border: 1px solid #ff4757;
+        }
+        
+        /* Main Layout */
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        @media (max-width: 1024px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Cards */
+        .card {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #2f3336;
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #2f3336;
+        }
+        
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+        
+        /* Activity Feed */
+        .activity-feed {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .activity-item {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background: #252a38;
+            border-left: 3px solid #00d4ff;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        .activity-item.github {
+            border-left-color: #7c3aed;
+        }
+        
+        .activity-item.github_edit {
+            border-left-color: #10b981;
+        }
+        
+        .activity-item.web {
+            border-left-color: #f59e0b;
+        }
+        
+        .activity-item.code {
+            border-left-color: #06b6d4;
+        }
+        
+        .activity-item.search {
+            border-left-color: #ec4899;
+        }
+        
+        .activity-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        
+        .activity-type {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: #00d4ff;
+            color: #000;
+            text-transform: uppercase;
+        }
+        
+        .activity-item.github .activity-type {
+            background: #7c3aed;
+            color: #fff;
+        }
+        
+        .activity-item.github_edit .activity-type {
+            background: #10b981;
+            color: #fff;
+        }
+        
+        .activity-item.web .activity-type {
+            background: #f59e0b;
+            color: #000;
+        }
+        
+        .activity-item.code .activity-type {
+            background: #06b6d4;
+            color: #000;
+        }
+        
+        .activity-item.search .activity-type {
+            background: #ec4899;
+            color: #fff;
+        }
+        
+        .activity-time {
+            font-size: 12px;
+            color: #8899a6;
+        }
+        
+        .activity-title {
+            font-weight: 500;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+        
+        .activity-details {
+            font-size: 13px;
+            color: #8899a6;
+        }
+        
+        /* AI Command Panel */
+        .command-panel {
+            padding: 20px;
+        }
+        
+        .command-input {
+            width: 100%;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #2f3336;
+            background: #252a38;
+            color: #fff;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .command-input:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+        
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 10px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: #000;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #2f3336;
+            color: #fff;
+        }
+        
+        .button-row {
+            margin-top: 15px;
+        }
+        
+        /* GitHub Panel */
+        .github-panel {
+            display: none;
+        }
+        
+        .repo-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .repo-item {
+            padding: 12px;
+            background: #252a38;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .repo-item:hover {
+            background: #2f3336;
+        }
+        
+        .repo-name {
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+        
+        .repo-meta {
+            font-size: 12px;
+            color: #8899a6;
+        }
+        
+        .file-editor {
+            margin-top: 20px;
+            padding: 15px;
+            background: #252a38;
+            border-radius: 8px;
+        }
+        
+        .editor-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #1a1a2e;
+            border: 1px solid #2f3336;
+            color: #fff;
+            border-radius: 6px;
+        }
+        
+        .file-content {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            background: #0f1419;
+            border: 1px solid #2f3336;
+            color: #00d4ff;
+            font-family: 'Consolas', 'Monaco', monospace;
+            border-radius: 6px;
+            resize: vertical;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            background: #2f3336;
+            border: none;
+            border-radius: 8px;
+            color: #8899a6;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .tab.active {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: #000;
+            font-weight: 600;
+        }
+        
+        .tab:hover:not(.active) {
+            background: #3f4448;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Loading */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #2f3336;
+            border-radius: 50%;
+            border-top-color: #00d4ff;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Response Panel */
+        .response-panel {
+            background: #252a38;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .response-panel.show {
+            display: block;
+        }
+        
+        .response-content {
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            color: #00ff88;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 AI Agent Dashboard</h1>
+        <div class="status-bar">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span>🔑 GitHub Token:</span>
+                <input type="password" id="github-token" placeholder="ghp_..." 
+                       value="" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #2f3336; background: #252a38; color: #fff; width: 200px; font-size: 12px;">
+                <button class="btn btn-secondary" onclick="connectGitHub()" style="padding: 6px 12px; font-size: 12px;">Connect</button>
+            </div>
+            <span id="github-status" class="status-item disconnected">
+                ⚫ Not Connected
+            </span>
+            <span class="status-item">
+                📊 Activities: <span id="activity-count">0</span>
+            </span>
+            <span class="status-item">
+                🕐 <span id="current-time">--:--:--</span>
+            </span>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <div class="left-panel">
+            <!-- Activity Feed -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">📡 Activity Feed</span>
+                    <button class="btn btn-secondary" onclick="clearActivity()">Clear</button>
+                </div>
+                <div id="activity-feed" class="activity-feed">
+                    <div style="text-align: center; color: #8899a6; padding: 40px;">
+                        No activity yet. Send a command to see it here.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- AI Command Panel -->
+            <div class="card command-panel">
+                <div class="card-header">
+                    <span class="card-title">💬 AI Command Interface</span>
+                </div>
+                <textarea id="command-input" class="command-input" placeholder="Enter your command here...&#10;Example: Clone repository NetworkAI, make changes, and push back"></textarea>
+                <div class="button-row">
+                    <button class="btn btn-primary" onclick="sendCommand()">▶ Execute</button>
+                    <button class="btn btn-secondary" onclick="clearCommand()">Clear</button>
+                </div>
+                <div id="response-panel" class="response-panel">
+                    <strong>Response:</strong>
+                    <div id="response-content" class="response-content"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="right-panel">
+            <!-- GitHub Panel -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">🐙 GitHub Control</span>
+                </div>
+                
+                <div class="tabs">
+                    <button class="tab active" onclick="switchTab('repos')">Repositories</button>
+                    <button class="tab" onclick="switchTab('editor')">File Editor</button>
+                    <button class="tab" onclick="switchTab('branch')">Branch/PR</button>
+                </div>
+                
+                <!-- Repositories Tab -->
+                <div id="tab-repos" class="tab-content active">
+                    <button class="btn btn-primary" onclick="loadRepos()" style="margin-bottom: 15px;">
+                        🔄 Refresh Repos
+                    </button>
+                    <div id="repo-list" class="repo-list">
+                        <div style="text-align: center; color: #8899a6; padding: 30px;">
+                            Click refresh to load repositories
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- File Editor Tab -->
+                <div id="tab-editor" class="tab-content">
+                    <div class="file-editor">
+                        <input type="text" id="editor-owner" class="editor-input" placeholder="Owner (e.g., iurix8-sys32)">
+                        <input type="text" id="editor-repo" class="editor-input" placeholder="Repository name">
+                        <input type="text" id="editor-path" class="editor-input" placeholder="File path (e.g., README.md)">
+                        <textarea id="editor-content" class="file-content" placeholder="File content..."></textarea>
+                        <input type="text" id="editor-message" class="editor-input" placeholder="Commit message" style="margin-top: 10px;">
+                        <button class="btn btn-primary" onclick="saveFile()" style="margin-top: 10px;">
+                            💾 Save to GitHub
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Branch/PR Tab -->
+                <div id="tab-branch" class="tab-content">
+                    <div class="file-editor">
+                        <h4 style="margin-bottom: 10px; color: #00d4ff;">Create Branch</h4>
+                        <input type="text" id="branch-owner" class="editor-input" placeholder="Owner">
+                        <input type="text" id="branch-repo" class="editor-input" placeholder="Repository">
+                        <input type="text" id="branch-name" class="editor-input" placeholder="New branch name">
+                        <input type="text" id="branch-base" class="editor-input" placeholder="Base branch (default: main)">
+                        <button class="btn btn-primary" onclick="createBranch()" style="margin-top: 10px;">
+                            🌿 Create Branch
+                        </button>
+                        
+                        <h4 style="margin: 20px 0 10px; color: #00d4ff;">Create Pull Request</h4>
+                        <input type="text" id="pr-owner" class="editor-input" placeholder="Owner">
+                        <input type="text" id="pr-repo" class="editor-input" placeholder="Repository">
+                        <input type="text" id="pr-title" class="editor-input" placeholder="PR Title">
+                        <textarea id="pr-body" class="editor-input" placeholder="PR Description" style="min-height: 60px;"></textarea>
+                        <input type="text" id="pr-head" class="editor-input" placeholder="Head branch (your branch)">
+                        <input type="text" id="pr-base" class="editor-input" placeholder="Base branch (default: main)">
+                        <button class="btn btn-primary" onclick="createPR()" style="margin-top: 10px;">
+                            🔀 Create Pull Request
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quick Actions -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">⚡ Quick Actions</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn btn-secondary" onclick="quickAction('Clone NetworkAI repo')">
+                        📥 Clone
+                    </button>
+                    <button class="btn btn-secondary" onclick="quickAction('List my repositories')">
+                        📋 List Repos
+                    </button>
+                    <button class="btn btn-secondary" onclick="quickAction('Search for Python projects')">
+                        🔍 Search
+                    </button>
+                    <button class="btn btn-secondary" onclick="quickAction('Show system info')">
+                        💻 System
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Token management
+let currentToken = '';
+
+function setAuthHeaders(token) {
+    currentToken = token;
+    localStorage.setItem('github_token', token);
+}
+
+// Load saved token
+window.onload = function() {
+    const savedToken = localStorage.getItem('github_token');
+    if (savedToken) {
+        document.getElementById('github-token').value = savedToken;
+        connectGitHub();
+    }
+};
+
+// Connect to GitHub
+async function connectGitHub() {
+    const token = document.getElementById('github-token').value.trim();
+    if (!token) {
+        alert('Please enter a GitHub token');
+        return;
+    }
+    
+    setAuthHeaders(token);
+    
+    try {
+        const response = await fetch('/api/status', {
+            headers: { 'X-GitHub-Token': token }
+        });
+        const data = await response.json();
+        
+        const statusEl = document.getElementById('github-status');
+        if (data.github_connected) {
+            statusEl.className = 'status-item connected';
+            statusEl.innerHTML = `🟢 @${data.github_user}`;
+            alert('✅ Connected to GitHub as @' + data.github_user);
+        } else {
+            statusEl.className = 'status-item disconnected';
+            statusEl.innerHTML = '🔴 Invalid token';
+            alert('❌ Invalid token');
+        }
+    } catch (e) {
+        alert('❌ Connection failed');
+    }
+}
+
+// Update time
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = 
+                now.toLocaleTimeString('en-US', {hour12: false});
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+        
+        // Load status
+        async function loadStatus() {
+            if (!currentToken) return;
+            
+            try {
+                const response = await fetch('/api/status', {
+                    headers: { 'X-GitHub-Token': currentToken }
+                });
+                const data = await response.json();
+                
+                document.getElementById('activity-count').textContent = data.activity_count;
+            } catch (e) {
+                console.error('Status load error:', e);
+            }
+        }
+        
+        // Load activity
+        async function loadActivity() {
+            try {
+                const response = await fetch('/api/activity');
+                const activities = await response.json();
+                
+                const feed = document.getElementById('activity-feed');
+                
+                if (activities.length === 0) {
+                    feed.innerHTML = '<div style="text-align: center; color: #8899a6; padding: 40px;">No activity yet. Send a command to see it here.</div>';
+                    return;
+                }
+                
+                feed.innerHTML = activities.map(a => `
+                    <div class="activity-item ${a.type}">
+                        <div class="activity-header">
+                            <span class="activity-type">${a.type}</span>
+                            <span class="activity-time">${a.timestamp}</span>
+                        </div>
+                        <div class="activity-title">${a.title}</div>
+                        <div class="activity-details">${a.details || ''}</div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error('Activity load error:', e);
+            }
+        }
+        
+        // Send command
+        async function sendCommand() {
+            const input = document.getElementById('command-input');
+            const command = input.value.trim();
+            
+            if (!command) return;
+            
+            const btn = event.target;
+            btn.innerHTML = '<span class="loading"></span>';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/ai/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command })
+                });
+                
+                const result = await response.json();
+                
+                // Show response
+                const panel = document.getElementById('response-panel');
+                const content = document.getElementById('response-content');
+                panel.classList.add('show');
+                content.textContent = JSON.stringify(result, null, 2);
+                
+                // Reload activity
+                loadActivity();
+            } catch (e) {
+                console.error('Command error:', e);
+            }
+            
+            btn.innerHTML = '▶ Execute';
+            btn.disabled = false;
+        }
+        
+        // Quick actions
+        function quickAction(command) {
+            document.getElementById('command-input').value = command;
+            sendCommand();
+        }
+        
+        // Clear functions
+        function clearCommand() {
+            document.getElementById('command-input').value = '';
+            document.getElementById('response-panel').classList.remove('show');
+        }
+        
+        async function clearActivity() {
+            await fetch('/api/log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'info', title: 'Activity cleared' })
+            });
+            loadActivity();
+        }
+        
+        // Tabs
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+        
+        // GitHub functions
+        async function loadRepos() {
+            if (!currentToken) {
+                alert('Please connect GitHub first');
+                return;
+            }
+            
+            const list = document.getElementById('repo-list');
+            list.innerHTML = '<div style="text-align: center; padding: 30px;"><span class="loading"></span> Loading...</div>';
+            
+            try {
+                const response = await fetch('/api/github/repos', {
+                    headers: { 'X-GitHub-Token': currentToken }
+                });
+                const repos = await response.json();
+                
+                if (Array.isArray(repos)) {
+                    list.innerHTML = repos.map(r => `
+                        <div class="repo-item" onclick="selectRepo('${r.owner.login}', '${r.name}')">
+                            <div class="repo-name">${r.name}</div>
+                            <div class="repo-meta">⭐ ${r.stargazers_count || 0} | Fork: ${r.forks_count || 0} | Lang: ${r.language || 'N/A'}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    list.innerHTML = '<div style="color: #ff4757; padding: 20px;">Error loading repos</div>';
+                }
+            } catch (e) {
+                list.innerHTML = '<div style="color: #ff4757; padding: 20px;">Failed to load repositories</div>';
+            }
+        }
+        
+        function selectRepo(owner, repo) {
+            document.getElementById('editor-owner').value = owner;
+            document.getElementById('editor-repo').value = repo;
+            switchTab('editor');
+        }
+        
+        async function saveFile() {
+            if (!currentToken) {
+                alert('Please connect GitHub first');
+                return;
+            }
+            
+            const owner = document.getElementById('editor-owner').value;
+            const repo = document.getElementById('editor-repo').value;
+            const path = document.getElementById('editor-path').value;
+            const content = document.getElementById('editor-content').value;
+            const message = document.getElementById('editor-message').value;
+            
+            if (!owner || !repo || !path) {
+                alert('Please fill in owner, repo, and path');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/github/edit', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-GitHub-Token': currentToken
+                    },
+                    body: JSON.stringify({
+                        owner, repo, path, 
+                        content: btoa(content),
+                        message: message || 'Updated file'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.content) {
+                    alert('✅ File saved successfully!');
+                    loadActivity();
+                } else {
+                    alert('❌ Error: ' + (result.message || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('❌ Failed to save file');
+            }
+        }
+        
+        async function createBranch() {
+            if (!currentToken) {
+                alert('Please connect GitHub first');
+                return;
+            }
+            
+            const owner = document.getElementById('branch-owner').value;
+            const repo = document.getElementById('branch-repo').value;
+            const name = document.getElementById('branch-name').value;
+            const base = document.getElementById('branch-base').value || 'main';
+            
+            if (!owner || !repo || !name) {
+                alert('Please fill in all fields');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/github/branch', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-GitHub-Token': currentToken
+                    },
+                    body: JSON.stringify({ owner, repo, branch: name, base })
+                });
+                
+                const result = await response.json();
+                
+                if (result.ref) {
+                    alert('✅ Branch created successfully!');
+                    loadActivity();
+                } else {
+                    alert('❌ Error: ' + (result.message || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('❌ Failed to create branch');
+            }
+        }
+        
+        async function createPR() {
+            if (!currentToken) {
+                alert('Please connect GitHub first');
+                return;
+            }
+            
+            const owner = document.getElementById('pr-owner').value;
+            const repo = document.getElementById('pr-repo').value;
+            const title = document.getElementById('pr-title').value;
+            const body = document.getElementById('pr-body').value;
+            const head = document.getElementById('pr-head').value;
+            const base = document.getElementById('pr-base').value || 'main';
+            
+            if (!owner || !repo || !title || !head) {
+                alert('Please fill in owner, repo, title, and head branch');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/github/pr', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-GitHub-Token': currentToken
+                    },
+                    body: JSON.stringify({ owner, repo, title, body, head, base })
+                });
+                
+                const result = await response.json();
+                
+                if (result.html_url) {
+                    alert('✅ PR created! URL: ' + result.html_url);
+                    loadActivity();
+                } else {
+                    alert('❌ Error: ' + (result.message || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('❌ Failed to create PR');
+            }
+        }
+        
+        // Initialize
+        loadStatus();
+        loadActivity();
+        
+        // Refresh periodically
+        setInterval(() => {
+            loadStatus();
+            loadActivity();
+        }, 5000);
+    </script>
+</body>
+</html>
