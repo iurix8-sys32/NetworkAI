@@ -123,6 +123,18 @@ Token is encrypted on disk. Each session requires PIN entry.
 | OpenWebUI | 8080 | http://localhost:8080 |
 | Ollama API | 11434 | http://localhost:11434 |
 
+## 🔄 Update System
+
+Check for updates from dashboard or run:
+```bash
+./update.sh
+```
+
+**Preserved on update:**
+- ✅ Encrypted GitHub token
+- ✅ Chat history
+- ⚠️ ai.log (reset)
+
 ## Security Notice
 
 - This AI has no content filters

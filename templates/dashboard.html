@@ -122,6 +122,21 @@
             box-shadow: 0 4px 20px rgba(0, 212, 255, 0.4);
         }
         
+        /* Update notification */
+        .update-badge {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: #000;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        .update-badge:hover {
+            transform: scale(1.05);
+        }
+        
         .status-item {
             background: rgba(0, 212, 255, 0.1);
             padding: 8px 16px;
@@ -481,6 +496,9 @@
     <div class="header">
         <h1>🤖 AI Agent Dashboard</h1>
         <div class="status-bar">
+            <span id="update-badge" class="update-badge" onclick="checkForUpdates()" style="display: none;">
+                🔄 Update Available
+            </span>
             <span id="github-status" class="status-item disconnected">
                 🔒 Token Locked
             </span>
@@ -692,6 +710,39 @@
             statusEl.innerHTML = '🔒 Token Locked';
         }
 
+        // Check for updates
+        async function checkForUpdates() {
+            try {
+                const response = await fetch('/api/update/check');
+                const data = await response.json();
+                
+                if (data.update_available) {
+                    if (confirm('New version available!\n\nLocal: ' + data.local_version + '\nRemote: ' + data.remote_version + '\n\nUpdate now?')) {
+                        window.open('update.sh', '_blank');
+                    }
+                } else {
+                    alert('You are on the latest version!');
+                }
+            } catch (e) {
+                console.error('Update check error:', e);
+            }
+        }
+        
+        // Periodic update check
+        setInterval(async () => {
+            try {
+                const response = await fetch('/api/update/check');
+                const data = await response.json();
+                
+                if (data.update_available) {
+                    document.getElementById('update-badge').style.display = 'inline';
+                }
+            } catch (e) {}
+        }, 60000); // Check every minute
+        
+        // Check updates on load
+        checkForUpdates();
+
         // Update time
         function updateTime() {
             const now = new Date();
@@ -781,8 +832,20 @@
                 panel.classList.add('show');
                 content.textContent = result.message || JSON.stringify(result, null, 2);
                 
-                // Add to chat history
+                // Save to chat history
                 addToChatHistory(command, result.message || 'Completed');
+                
+                // Also save to server
+                try {
+                    await fetch('/api/chat/add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            question: command,
+                            answer: result.message || 'Completed'
+                        })
+                    });
+                } catch (e) {}
                 
                 // Reload activity
                 loadActivity();
@@ -798,7 +861,7 @@
             btn.disabled = false;
         }
         
-        // Chat history
+        // Chat history (local)
         const chatHistory = [];
         
         function addToChatHistory(question, answer) {

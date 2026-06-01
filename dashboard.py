@@ -24,6 +24,27 @@ LOG_FILE = '/tmp/ai_activity.log'
 activity_log = []
 log_lock = Lock()
 
+# Chat history file
+CHAT_HISTORY_FILE = '/tmp/ai_chat_history.json'
+
+def load_chat_history():
+    """Load chat history from file"""
+    try:
+        if os.path.exists(CHAT_HISTORY_FILE):
+            with open(CHAT_HISTORY_FILE, 'r') as f:
+                return json.load(f)
+    except:
+        pass
+    return []
+
+def save_chat_history(history):
+    """Save chat history to file"""
+    try:
+        with open(CHAT_HISTORY_FILE, 'w') as f:
+            json.dump(history[-100:], f)  # Keep last 100 entries
+    except:
+        pass
+
 def log_activity(action_type, title, details=""):
     """Log AI activity"""
     with log_lock:
@@ -532,6 +553,66 @@ def log_event():
     data = request.json
     log_activity(data.get('type', 'info'), data.get('title', ''), data.get('details', ''))
     return jsonify({"status": "ok"})
+
+@app.route('/api/chat/history')
+def chat_history():
+    """Get chat history"""
+    history = load_chat_history()
+    return jsonify(history)
+
+@app.route('/api/chat/add', methods=['POST'])
+def add_chat():
+    """Add to chat history"""
+    data = request.json
+    history = load_chat_history()
+    
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "question": data.get('question', ''),
+        "answer": data.get('answer', ''),
+        "type": data.get('type', 'chat')
+    }
+    
+    history.append(entry)
+    save_chat_history(history)
+    
+    return jsonify({"status": "ok"})
+
+@app.route('/api/update/check')
+def check_update():
+    """Check if update is available"""
+    try:
+        result = subprocess.run(
+            ['git', 'fetch', 'origin', 'main'],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        
+        local = subprocess.run(
+            ['git', 'rev-parse', 'HEAD'],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        ).stdout.strip()
+        
+        remote = subprocess.run(
+            ['git', 'rev-parse', 'origin/main'],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        ).stdout.strip()
+        
+        update_available = local != remote
+        
+        return jsonify({
+            "update_available": update_available,
+            "local_version": local[:8],
+            "remote_version": remote[:8] if update_available else None,
+            "current_branch": "main"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "update_available": False})
 
 # Stream updates
 @app.route('/api/stream')
