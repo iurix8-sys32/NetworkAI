@@ -1,0 +1,4 @@
+ollama>=0.1.0
+open-webui>=0.0.1
+python-whois>=0.8.0
+requests>=2.31.0

@@ -1,0 +1,37 @@
+name: Local-Security-AI
+description: A local AI agent with system-level internet access for authorized security research
+
+# Agent configuration
+agent:
+  llm:
+    provider: ollama
+    model: llama3.2
+    base_url: http://localhost:11434
+    api_key: ""  # Local Ollama requires no API key
+
+# Tools enabled
+tools:
+  - web_scrape: true
+  - web_search: true
+  - curl: true
+  - wget: true
+  - python_requests: true
+  - dns_lookup: true
+  - ping: true
+  - port_scan: false  # Disabled by default
+  - exploit: false
+
+# Network configuration
+network:
+  allow_all_outgoing: true
+  dns_servers:
+    - 1.1.1.1
+    - 8.8.8.8
+  proxy: none
+
+# Security constraints
+constraints:
+  authorized_only: true
+  scope_documentation_required: true
+  log_all_operations: true
+  block_internal_network: false  # Allow scanning own infrastructure
