@@ -631,6 +631,42 @@
                     </button>
                 </div>
             </div>
+            
+            <!-- Code Generator -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">💻 Code Generator</span>
+                </div>
+                <div class="file-editor">
+                    <h4 style="margin-bottom: 10px; color: #00d4ff;">Generate & Push Code</h4>
+                    <input type="text" id="gen-owner" class="editor-input" placeholder="GitHub Owner (e.g., iurix8-sys32)">
+                    <input type="text" id="gen-repo" class="editor-input" placeholder="Repository name">
+                    <input type="text" id="gen-path" class="editor-input" placeholder="File path (e.g., bot.py)">
+                    <textarea id="gen-prompt" class="file-content" placeholder="Describe what code to generate...&#10;Example: Create a Python Discord bot with ping command and moderation commands" style="min-height: 100px;"></textarea>
+                    <button class="btn btn-primary" onclick="generateCode()" style="margin-top: 10px;">
+                        ⚡ Generate & Push
+                    </button>
+                    <div id="gen-result" style="margin-top: 15px; display: none;">
+                        <pre id="gen-code" style="background: #0f1419; padding: 10px; border-radius: 6px; color: #00ff88; font-size: 12px; max-height: 200px; overflow-y: auto;"></pre>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Project Builder -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">🏗️ Project Builder</span>
+                </div>
+                <div class="file-editor">
+                    <h4 style="margin-bottom: 10px; color: #00d4ff;">Build Full Project</h4>
+                    <input type="text" id="proj-owner" class="editor-input" placeholder="GitHub Owner">
+                    <input type="text" id="proj-repo" class="editor-input" placeholder="Repository name">
+                    <textarea id="proj-files" class="editor-input" placeholder='JSON files object:&#10;{"README.md": "# My Project", "main.py": "print(\"Hello\")"}' style="min-height: 80px; font-family: monospace; font-size: 11px;"></textarea>
+                    <button class="btn btn-primary" onclick="buildProject()" style="margin-top: 10px;">
+                        🚀 Build Project
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -1052,6 +1088,112 @@
             } catch (e) {
                 alert('❌ Failed to create PR');
             }
+        }
+        
+        // Code Generator
+        async function generateCode() {
+            const owner = document.getElementById('gen-owner').value;
+            const repo = document.getElementById('gen-repo').value;
+            const path = document.getElementById('gen-path').value || 'generated.py';
+            const prompt = document.getElementById('gen-prompt').value;
+            
+            if (!prompt) {
+                alert('Please enter what code to generate');
+                return;
+            }
+            
+            const btn = event.target;
+            btn.innerHTML = '<span class="loading"></span> Generating...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/generate/code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        prompt,
+                        owner: owner || undefined,
+                        repo: repo || undefined,
+                        filepath: path
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.code) {
+                    document.getElementById('gen-result').style.display = 'block';
+                    document.getElementById('gen-code').textContent = result.code;
+                    
+                    if (result.pushed) {
+                        alert('✅ Code generated and pushed to GitHub!\n' + result.github_url);
+                        loadActivity();
+                    } else {
+                        alert('✅ Code generated! (Not pushed - provide owner/repo)');
+                    }
+                } else {
+                    alert('❌ Error: ' + (result.error || 'Generation failed'));
+                }
+            } catch (e) {
+                alert('❌ Failed to generate code');
+            }
+            
+            btn.innerHTML = '⚡ Generate & Push';
+            btn.disabled = false;
+        }
+        
+        // Project Builder
+        async function buildProject() {
+            const owner = document.getElementById('proj-owner').value;
+            const repo = document.getElementById('proj-repo').value;
+            const filesJson = document.getElementById('proj-files').value;
+            
+            if (!owner || !repo) {
+                alert('Please enter owner and repo');
+                return;
+            }
+            
+            if (!filesJson) {
+                alert('Please enter files JSON');
+                return;
+            }
+            
+            let files;
+            try {
+                files = JSON.parse(filesJson);
+            } catch (e) {
+                alert('Invalid JSON format');
+                return;
+            }
+            
+            const btn = event.target;
+            btn.innerHTML = '<span class="loading"></span> Building...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/build/project', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        owner, 
+                        repo, 
+                        files 
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    alert('✅ Project built! ' + result.files_pushed + ' files pushed\n' + result.repo_url);
+                    loadActivity();
+                } else {
+                    alert('❌ Error: ' + (result.error || 'Build failed'));
+                }
+            } catch (e) {
+                alert('❌ Failed to build project');
+            }
+            
+            btn.innerHTML = '🚀 Build Project';
+            btn.disabled = false;
         }
         
         // Initialize

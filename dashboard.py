@@ -578,6 +578,167 @@ def add_chat():
     
     return jsonify({"status": "ok"})
 
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    """Handle file upload"""
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"})
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No file selected"})
+    
+    # Save to temp directory
+    upload_dir = '/tmp/ai_uploads'
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    filepath = os.path.join(upload_dir, file.filename)
+    file.save(filepath)
+    
+    # Read content if it's a text file
+    content = None
+    if file.filename.endswith(('.py', '.js', '.html', '.css', '.txt', '.md', '.sh', '.json', '.yaml', '.yml')):
+        try:
+            with open(filepath, 'r') as f:
+                content = f.read()
+        except:
+            content = "[Binary file - cannot display]"
+    
+    log_activity("upload", f"Uploaded: {file.filename}", f"Size: {os.path.getsize(filepath)} bytes")
+    
+    return jsonify({
+        "status": "success",
+        "filename": file.filename,
+        "size": os.path.getsize(filepath),
+        "content": content,
+        "path": filepath
+    })
+
+@app.route('/api/generate/code', methods=['POST'])
+def generate_code():
+    """Generate and push code to GitHub"""
+    data = request.json
+    prompt = data.get('prompt', '')
+    owner = data.get('owner')
+    repo = data.get('repo')
+    filepath = data.get('filepath', f"generated_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py")
+    branch = data.get('branch', 'main')
+    
+    log_activity("code_gen", f"Generating code: {prompt[:50]}...", f"Target: {owner}/{repo}/{filepath}")
+    
+    # Try to use Ollama to generate code
+    try:
+        import requests as req
+        ollama_resp = req.post(
+            'http://localhost:11434/api/generate',
+            json={
+                'model': 'llama3.2',
+                'prompt': f"You are a code generator. Write complete, working code based on this request: {prompt}\n\nOnly output the code, no explanations. Make it production-ready.",
+                'stream': False
+            },
+            timeout=120
+        )
+        
+        if ollama_resp.status_code == 200:
+            result = ollama_resp.json()
+            generated_code = result.get('response', '')
+            
+            # Save to temp file
+            temp_path = f"/tmp/{filepath.replace('/', '_')}"
+            with open(temp_path, 'w') as f:
+                f.write(generated_code)
+            
+            # Push to GitHub if token available
+            import token_storage
+            token = token_storage.get_token()
+            
+            if token and owner and repo:
+                client = get_github_client(token)
+                
+                # Encode content
+                import base64
+                content_b64 = base64.b64encode(generated_code.encode()).decode()
+                
+                # Check if file exists (need SHA)
+                try:
+                    existing = client.get_file(owner, repo, filepath)
+                    sha = existing.get('sha')
+                except:
+                    sha = None
+                
+                # Push to GitHub
+                push_result = client.create_or_update_file(owner, repo, filepath, content_b64, f"AI Generated: {prompt[:50]}", sha)
+                
+                if push_result.get('content'):
+                    log_activity("code_push", f"Pushed to GitHub", f"{owner}/{repo}/{filepath}")
+                    return jsonify({
+                        "status": "success",
+                        "code": generated_code,
+                        "github_url": f"https://github.com/{owner}/{repo}/blob/main/{filepath}",
+                        "pushed": True
+                    })
+            
+            return jsonify({
+                "status": "success",
+                "code": generated_code,
+                "pushed": False,
+                "message": "Code generated. Provide owner/repo to push to GitHub."
+            })
+    except Exception as e:
+        pass
+    
+    return jsonify({"error": "Ollama not available or generation failed"})
+
+@app.route('/api/build/project', methods=['POST'])
+def build_project():
+    """Build a full project and push to GitHub"""
+    data = request.json
+    project_name = data.get('name', 'my-project')
+    description = data.get('description', '')
+    files = data.get('files', {})  # {path: content}
+    owner = data.get('owner')
+    repo = data.get('repo')
+    
+    log_activity("project", f"Building project: {project_name}", f"{len(files)} files")
+    
+    import token_storage
+    token = token_storage.get_token()
+    
+    if not token:
+        return jsonify({"error": "GitHub token required"})
+    
+    if not owner or not repo:
+        return jsonify({"error": "owner and repo required"})
+    
+    client = get_github_client(token)
+    results = []
+    
+    # Push all files
+    for filepath, content in files.items():
+        import base64
+        content_b64 = base64.b64encode(content.encode()).decode()
+        
+        # Get SHA if file exists
+        sha = None
+        try:
+            existing = client.get_file(owner, repo, filepath)
+            sha = existing.get('sha')
+        except:
+            pass
+        
+        result = client.create_or_update_file(owner, repo, filepath, content_b64, f"Added {filepath}", sha)
+        results.append({"file": filepath, "success": bool(result.get('content'))})
+        
+        log_activity("project", f"Added file: {filepath}", f"Success: {bool(result.get('content'))}")
+    
+    return jsonify({
+        "status": "success",
+        "project": project_name,
+        "files_pushed": len(files),
+        "results": results,
+        "repo_url": f"https://github.com/{owner}/{repo}"
+    })
+
 @app.route('/api/update/check')
 def check_update():
     """Check if update is available"""
