@@ -779,16 +779,56 @@
                 const panel = document.getElementById('response-panel');
                 const content = document.getElementById('response-content');
                 panel.classList.add('show');
-                content.textContent = JSON.stringify(result, null, 2);
+                content.textContent = result.message || JSON.stringify(result, null, 2);
+                
+                // Add to chat history
+                addToChatHistory(command, result.message || 'Completed');
                 
                 // Reload activity
                 loadActivity();
             } catch (e) {
                 console.error('Command error:', e);
+                const panel = document.getElementById('response-panel');
+                const content = document.getElementById('response-content');
+                panel.classList.add('show');
+                content.textContent = 'Error: ' + e.message;
             }
             
             btn.innerHTML = '▶ Execute';
             btn.disabled = false;
+        }
+        
+        // Chat history
+        const chatHistory = [];
+        
+        function addToChatHistory(question, answer) {
+            chatHistory.push({ question, answer, time: new Date() });
+            
+            // Update activity feed to show chat
+            const feed = document.getElementById('activity-feed');
+            const chatEntry = document.createElement('div');
+            chatEntry.className = 'activity-item ai_response';
+            chatEntry.innerHTML = `
+                <div class="activity-header">
+                    <span class="activity-type">CHAT</span>
+                    <span class="activity-time">${new Date().toLocaleTimeString()}</span>
+                </div>
+                <div class="activity-title">You: ${question.substring(0, 50)}${question.length > 50 ? '...' : ''}</div>
+                <div class="activity-details">AI: ${answer.substring(0, 100)}${answer.length > 100 ? '...' : ''}</div>
+            `;
+            
+            // Add at the top
+            if (feed.firstChild) {
+                feed.insertBefore(chatEntry, feed.firstChild);
+            } else {
+                feed.appendChild(chatEntry);
+            }
+            
+            // Keep only last 20 items in view
+            const items = feed.querySelectorAll('.activity-item');
+            if (items.length > 20) {
+                items[items.length - 1].remove();
+            }
         }
         
         // Quick actions

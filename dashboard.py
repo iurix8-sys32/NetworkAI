@@ -424,38 +424,107 @@ def ai_command():
     
     log_activity("ai_command", f"AI Command: {command[:50]}...", command)
     
-    # Simulate AI processing
-    response = simulate_ai_action(command)
+    # Try Ollama first
+    try:
+        import token_storage
+        token = token_storage.get_token()
+        if token:
+            # Get user info for context
+            client = get_github_client(token)
+            user = client.get_user()
+            username = user.get('login', 'User')
+        else:
+            username = 'User'
+    except:
+        username = 'User'
     
+    # Call Ollama for actual AI response
+    try:
+        import requests as req
+        ollama_resp = req.post(
+            'http://localhost:11434/api/generate',
+            json={
+                'model': 'llama3.2',
+                'prompt': f"You are NetworkAI assistant for {username}. Respond to: {command}",
+                'stream': False
+            },
+            timeout=60
+        )
+        
+        if ollama_resp.status_code == 200:
+            result = ollama_resp.json()
+            ai_response = result.get('response', 'No response')
+            log_activity("ai_response", f"Response generated", ai_response[:100])
+            return jsonify({
+                "status": "success",
+                "action": "ai_response",
+                "message": ai_response
+            })
+    except Exception as e:
+        pass
+    
+    # Fallback simulation
+    response = simulate_ai_action(command)
     return jsonify(response)
 
 def simulate_ai_action(command):
-    """Simulate AI action based on command"""
+    """Simulate AI action based on command - fallback when no Ollama"""
     command_lower = command.lower()
     
-    if 'clone' in command_lower or 'pull' in command_lower:
-        log_activity("github", "Git Clone/Pull", command)
-        return {"status": "success", "action": "pull", "message": "Pulled latest changes"}
+    # If Ollama is not running, give helpful responses
+    responses = {
+        "search": {
+            "status": "success",
+            "action": "search",
+            "message": "Web search ready. To enable AI responses, install Ollama: curl -fsSL https://ollama.com/install.sh | sh\n\nFor now, use the GitHub panel to:\n- Browse repositories\n- Edit files\n- Create branches/PRs\n- Clone repos"
+        },
+        "scrape": {
+            "status": "success",
+            "action": "scrape",
+            "message": "Web scraping ready. Use the API endpoints:\n- /api/dns?domain=example.com\n- /api/whois?domain=example.com\n- /api/headers?url=https://example.com\n- /api/scrape?url=https://example.com"
+        },
+        "clone": {
+            "status": "success",
+            "action": "clone",
+            "message": "Git clone ready. Use the GitHub panel to:\n1. Enter owner and repo name\n2. Click Load Repos\n3. Select a repo to work with"
+        },
+        "push": {
+            "status": "success",
+            "action": "push",
+            "message": "Git push ready. Use the File Editor tab to:\n1. Enter owner/repo/path\n2. Write your code\n3. Add commit message\n4. Save to GitHub"
+        },
+        "code": {
+            "status": "success",
+            "action": "code",
+            "message": "Code generation ready. To enable AI coding:\n1. Install Ollama: curl -fsSL https://ollama.com/install.sh | sh\n2. Run: ollama pull codellama\n3. Restart dashboard\n\nThen I can write and edit code for you!"
+        },
+        "help": {
+            "status": "success",
+            "action": "help",
+            "message": "NetworkAI Commands:\n\n📂 GitHub:\n- Clone repositories\n- Edit files\n- Create branches & PRs\n- Push changes\n\n🌐 Web:\n- DNS lookup\n- WHOIS search\n- Header analysis\n- Web scraping\n\n💬 Chat with me after installing Ollama!\n\nTo install Ollama:\ncurl -fsSL https://ollama.com/install.sh | sh\nollama pull llama3.2"
+        }
+    }
     
-    elif 'push' in command_lower or 'commit' in command_lower:
-        log_activity("github", "Git Push/Commit", command)
-        return {"status": "success", "action": "push", "message": "Pushed changes to repository"}
+    # Check for keywords
+    if any(word in command_lower for word in ['search', 'find', 'look']):
+        return responses['search']
+    elif any(word in command_lower for word in ['scrape', 'fetch', 'get']):
+        return responses['scrape']
+    elif any(word in command_lower for word in ['clone', 'download']):
+        return responses['clone']
+    elif any(word in command_lower for word in ['push', 'upload', 'commit']):
+        return responses['push']
+    elif any(word in command_lower for word in ['code', 'write', 'script', 'python']):
+        return responses['code']
+    elif any(word in command_lower for word in ['help', '?' , 'commands', 'what']):
+        return responses['help']
     
-    elif 'search' in command_lower or 'find' in command_lower:
-        log_activity("search", "Web Search", command)
-        return {"status": "success", "action": "search", "message": "Search completed"}
-    
-    elif 'scrape' in command_lower or 'fetch' in command_lower:
-        log_activity("web", "Web Scrape", command)
-        return {"status": "success", "action": "scrape", "message": "Web content scraped"}
-    
-    elif 'code' in command_lower or 'write' in command_lower:
-        log_activity("code", "Code Generation", command)
-        return {"status": "success", "action": "code", "message": "Code generated successfully"}
-    
-    else:
-        log_activity("ai", "General AI Task", command)
-        return {"status": "success", "action": "general", "message": "Task completed"}
+    # Default helpful response
+    return {
+        "status": "success",
+        "action": "general",
+        "message": f"I received: '{command[:100]}...'\n\nTo enable full AI responses, install Ollama:\n\n1. curl -fsSL https://ollama.com/install.sh | sh\n2. ollama pull llama3.2\n3. Restart: ./stop.sh && ./start.sh\n\nWithout Ollama, you can still use:\n- GitHub panel (repos, files, branches, PRs)\n- DNS/WHOIS lookups\n- Web scraping via API"
+    }
 
 @app.route('/api/log', methods=['POST'])
 def log_event():
