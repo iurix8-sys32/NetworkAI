@@ -1,15 +1,92 @@
-# Local AI Security Lab
+# NetworkAI - Local AI Security Lab
 
 A self-hosted AI system with system-level internet access for security research and authorized testing. Features a graphical dashboard showing all AI activity in real-time with PIN-protected GitHub token encryption.
 
-## Features
+## Quick Setup
 
-- **Ollama** - Local LLM inference engine
-- **OpenWebUI** - Web interface for AI interaction
-- **AI Dashboard** - Graphical interface showing AI activity
-- **PIN-Protected Token** - GitHub token encrypted with AES, unlocked via PIN `251172`
-- **GitHub Integration** - Full API access to edit, push, pull, and create PRs
-- **Full internet access** - Web scraping, API calls, DNS resolution
+```bash
+# 1. Clone or download this repo
+git clone https://github.com/iurix8-sys32/NetworkAI.git
+cd NetworkAI
+
+# 2. Run setup (installs dependencies + configures firewall)
+chmod +x setup_firewall.sh
+sudo ./setup_firewall.sh
+
+# 3. Start in screen
+chmod +x start.sh
+./start.sh
+```
+
+Then access: **http://YOUR_SERVER_IP:5000**
+
+---
+
+## 🔥 Firewall Configuration
+
+### Ports to Open
+
+| Port | Service | URL |
+|------|---------|-----|
+| **5000** | AI Dashboard | http://YOUR_IP:5000 |
+| **8080** | OpenWebUI | http://YOUR_IP:8080 |
+| **11434** | Ollama API | localhost only |
+
+### Commands by Firewall Type
+
+#### UFW (Debian/Ubuntu)
+```bash
+sudo ufw allow 5000/tcp comment 'NetworkAI Dashboard'
+sudo ufw allow 8080/tcp comment 'NetworkAI WebUI'
+sudo ufw allow 11434/tcp comment 'NetworkAI Ollama'
+sudo ufw enable
+```
+
+#### firewalld (RHEL/CentOS/Fedora)
+```bash
+sudo firewall-cmd --permanent --add-port=5000/tcp
+sudo firewall-cmd --permanent --add-port=8080/tcp
+sudo firewall-cmd --permanent --add-port=11434/tcp
+sudo firewall-cmd --reload
+```
+
+#### iptables (Generic)
+```bash
+sudo iptables -A INPUT -p tcp --dport 5000 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 11434 -j ACCEPT
+```
+
+---
+
+## 🚀 Usage with Screen
+
+### Start AI Dashboard
+```bash
+./start.sh
+```
+
+### Reconnect to Screen
+```bash
+screen -r AI
+```
+
+### Detach from Screen
+```
+Press: Ctrl+A then D
+```
+
+### Stop AI Dashboard
+```bash
+./stop.sh
+```
+
+### View Logs
+```bash
+tail -f ai.log
+```
+
+---
 
 ## Security
 
@@ -20,17 +97,6 @@ GitHub Token → AES-256 Encryption → Stored in /tmp/.gh_token.enc
 ```
 
 Token is encrypted on disk. Each session requires PIN entry.
-
-## Quick Setup
-
-```bash
-chmod +x setup.sh
-./setup.sh
-pip install -r requirements.txt
-python dashboard.py
-```
-
-Then open `http://your-server:5000` in your browser.
 
 ## Dashboard Features
 
