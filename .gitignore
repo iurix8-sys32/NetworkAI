@@ -22,3 +22,6 @@ ENV/
 ollama-data/
 open-webui-data/
 models/
+# Encrypted token files
+.gh_token.enc
+.gh_token.salt

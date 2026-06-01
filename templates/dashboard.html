@@ -35,6 +35,91 @@
             display: flex;
             gap: 20px;
             flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        /* PIN Lock Screen */
+        .pin-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 20, 25, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .pin-overlay.hidden {
+            display: none;
+        }
+        
+        .pin-box {
+            background: #1a1a2e;
+            padding: 40px;
+            border-radius: 16px;
+            border: 1px solid #00d4ff;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(0, 212, 255, 0.2);
+        }
+        
+        .pin-box h2 {
+            color: #00d4ff;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        
+        .pin-box p {
+            color: #8899a6;
+            margin-bottom: 20px;
+        }
+        
+        .pin-input {
+            width: 100%;
+            padding: 15px;
+            font-size: 24px;
+            text-align: center;
+            letter-spacing: 8px;
+            border: 2px solid #2f3336;
+            border-radius: 8px;
+            background: #252a38;
+            color: #fff;
+            margin-bottom: 15px;
+        }
+        
+        .pin-input:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+        
+        .token-input {
+            width: 100%;
+            padding: 12px;
+            font-size: 14px;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            background: #252a38;
+            color: #fff;
+            margin-bottom: 15px;
+        }
+        
+        .unlock-btn {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            border: none;
+            border-radius: 8px;
+            color: #000;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        .unlock-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.4);
         }
         
         .status-item {
@@ -378,17 +463,26 @@
     </style>
 </head>
 <body>
+    <!-- PIN Lock Screen -->
+    <div id="pin-overlay" class="pin-overlay">
+        <div class="pin-box">
+            <h2>🔐 Secure Access</h2>
+            <p>Enter your PIN to unlock the GitHub token</p>
+            <div id="setup-section">
+                <input type="password" id="token-input" class="token-input" placeholder="Paste GitHub Token (ghp_...)">
+                <p style="font-size: 12px; margin-bottom: 10px;">First time? Paste your token above</p>
+            </div>
+            <input type="password" id="pin-input" class="pin-input" placeholder="• • • • • •" maxlength="6">
+            <button class="unlock-btn" onclick="unlockWithPin()">🔓 Unlock</button>
+            <p id="pin-error" style="color: #ff4757; margin-top: 15px; display: none;">Invalid PIN</p>
+        </div>
+    </div>
+    
     <div class="header">
         <h1>🤖 AI Agent Dashboard</h1>
         <div class="status-bar">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <span>🔑 GitHub Token:</span>
-                <input type="password" id="github-token" placeholder="ghp_..." 
-                       value="" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #2f3336; background: #252a38; color: #fff; width: 200px; font-size: 12px;">
-                <button class="btn btn-secondary" onclick="connectGitHub()" style="padding: 6px 12px; font-size: 12px;">Connect</button>
-            </div>
             <span id="github-status" class="status-item disconnected">
-                ⚫ Not Connected
+                🔒 Token Locked
             </span>
             <span class="status-item">
                 📊 Activities: <span id="activity-count">0</span>
@@ -396,6 +490,9 @@
             <span class="status-item">
                 🕐 <span id="current-time">--:--:--</span>
             </span>
+            <button class="btn btn-secondary" onclick="lockToken()" style="padding: 6px 12px; font-size: 12px;">
+                🔒 Lock
+            </button>
         </div>
     </div>
     
@@ -520,55 +617,82 @@
     </div>
     
     <script>
-        // Token management
-let currentToken = '';
+        // PIN: 251172
+        const CORRECT_PIN = "251172";
+        let currentToken = '';
+        let isUnlocked = false;
 
-function setAuthHeaders(token) {
-    currentToken = token;
-    localStorage.setItem('github_token', token);
-}
+        // Check if token is stored on page load
+        window.onload = async function() {
+            const status = await loadStatus();
+            if (status && status.token_stored) {
+                document.getElementById('setup-section').style.display = 'none';
+            }
+        };
 
-// Load saved token
-window.onload = function() {
-    const savedToken = localStorage.getItem('github_token');
-    if (savedToken) {
-        document.getElementById('github-token').value = savedToken;
-        connectGitHub();
-    }
-};
-
-// Connect to GitHub
-async function connectGitHub() {
-    const token = document.getElementById('github-token').value.trim();
-    if (!token) {
-        alert('Please enter a GitHub token');
-        return;
-    }
-    
-    setAuthHeaders(token);
-    
-    try {
-        const response = await fetch('/api/status', {
-            headers: { 'X-GitHub-Token': token }
-        });
-        const data = await response.json();
-        
-        const statusEl = document.getElementById('github-status');
-        if (data.github_connected) {
-            statusEl.className = 'status-item connected';
-            statusEl.innerHTML = `🟢 @${data.github_user}`;
-            alert('✅ Connected to GitHub as @' + data.github_user);
-        } else {
-            statusEl.className = 'status-item disconnected';
-            statusEl.innerHTML = '🔴 Invalid token';
-            alert('❌ Invalid token');
+        // Unlock with PIN
+        async function unlockWithPin() {
+            const pin = document.getElementById('pin-input').value;
+            const token = document.getElementById('token-input').value;
+            
+            if (pin !== CORRECT_PIN) {
+                document.getElementById('pin-error').style.display = 'block';
+                return;
+            }
+            
+            try {
+                let response;
+                if (token) {
+                    // First time setup - store token
+                    response = await fetch('/api/init', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pin, token })
+                    });
+                    document.getElementById('setup-section').style.display = 'none';
+                } else {
+                    // Unlock stored token
+                    response = await fetch('/api/unlock', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pin })
+                    });
+                }
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    currentToken = data.token || 'verified';
+                    isUnlocked = true;
+                    document.getElementById('pin-overlay').classList.add('hidden');
+                    
+                    // Update UI
+                    const statusEl = document.getElementById('github-status');
+                    statusEl.className = 'status-item connected';
+                    statusEl.innerHTML = '🟢 Token Unlocked';
+                    
+                    loadStatus();
+                    loadActivity();
+                } else {
+                    document.getElementById('pin-error').style.display = 'block';
+                }
+            } catch (e) {
+                document.getElementById('pin-error').style.display = 'block';
+            }
         }
-    } catch (e) {
-        alert('❌ Connection failed');
-    }
-}
 
-// Update time
+        // Lock the token
+        function lockToken() {
+            currentToken = '';
+            isUnlocked = false;
+            document.getElementById('pin-overlay').classList.remove('hidden');
+            
+            const statusEl = document.getElementById('github-status');
+            statusEl.className = 'status-item disconnected';
+            statusEl.innerHTML = '🔒 Token Locked';
+        }
+
+        // Update time
         function updateTime() {
             const now = new Date();
             document.getElementById('current-time').textContent = 
@@ -579,17 +703,27 @@ async function connectGitHub() {
         
         // Load status
         async function loadStatus() {
-            if (!currentToken) return;
-            
             try {
-                const response = await fetch('/api/status', {
-                    headers: { 'X-GitHub-Token': currentToken }
-                });
+                const response = await fetch('/api/status');
                 const data = await response.json();
                 
                 document.getElementById('activity-count').textContent = data.activity_count;
+                
+                // Update lock status based on server state
+                if (data.token_stored && data.token_unlocked) {
+                    isUnlocked = true;
+                    document.getElementById('pin-overlay').classList.add('hidden');
+                    const statusEl = document.getElementById('github-status');
+                    statusEl.className = 'status-item connected';
+                    statusEl.innerHTML = '🟢 Connected';
+                } else {
+                    isUnlocked = false;
+                }
+                
+                return data;
             } catch (e) {
                 console.error('Status load error:', e);
+                return null;
             }
         }
         
@@ -689,18 +823,11 @@ async function connectGitHub() {
         
         // GitHub functions
         async function loadRepos() {
-            if (!currentToken) {
-                alert('Please connect GitHub first');
-                return;
-            }
-            
             const list = document.getElementById('repo-list');
             list.innerHTML = '<div style="text-align: center; padding: 30px;"><span class="loading"></span> Loading...</div>';
             
             try {
-                const response = await fetch('/api/github/repos', {
-                    headers: { 'X-GitHub-Token': currentToken }
-                });
+                const response = await fetch('/api/github/repos');
                 const repos = await response.json();
                 
                 if (Array.isArray(repos)) {
@@ -725,11 +852,6 @@ async function connectGitHub() {
         }
         
         async function saveFile() {
-            if (!currentToken) {
-                alert('Please connect GitHub first');
-                return;
-            }
-            
             const owner = document.getElementById('editor-owner').value;
             const repo = document.getElementById('editor-repo').value;
             const path = document.getElementById('editor-path').value;
@@ -744,10 +866,7 @@ async function connectGitHub() {
             try {
                 const response = await fetch('/api/github/edit', {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'X-GitHub-Token': currentToken
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         owner, repo, path, 
                         content: btoa(content),
@@ -757,11 +876,11 @@ async function connectGitHub() {
                 
                 const result = await response.json();
                 
-                if (result.content) {
+                if (result.content || result.sha) {
                     alert('✅ File saved successfully!');
                     loadActivity();
                 } else {
-                    alert('❌ Error: ' + (result.message || 'Unknown error'));
+                    alert('❌ Error: ' + (result.error || 'Unknown error'));
                 }
             } catch (e) {
                 alert('❌ Failed to save file');
@@ -769,11 +888,6 @@ async function connectGitHub() {
         }
         
         async function createBranch() {
-            if (!currentToken) {
-                alert('Please connect GitHub first');
-                return;
-            }
-            
             const owner = document.getElementById('branch-owner').value;
             const repo = document.getElementById('branch-repo').value;
             const name = document.getElementById('branch-name').value;
@@ -787,10 +901,7 @@ async function connectGitHub() {
             try {
                 const response = await fetch('/api/github/branch', {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'X-GitHub-Token': currentToken
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ owner, repo, branch: name, base })
                 });
                 
@@ -800,7 +911,7 @@ async function connectGitHub() {
                     alert('✅ Branch created successfully!');
                     loadActivity();
                 } else {
-                    alert('❌ Error: ' + (result.message || 'Unknown error'));
+                    alert('❌ Error: ' + (result.error || 'Unknown error'));
                 }
             } catch (e) {
                 alert('❌ Failed to create branch');
@@ -808,11 +919,6 @@ async function connectGitHub() {
         }
         
         async function createPR() {
-            if (!currentToken) {
-                alert('Please connect GitHub first');
-                return;
-            }
-            
             const owner = document.getElementById('pr-owner').value;
             const repo = document.getElementById('pr-repo').value;
             const title = document.getElementById('pr-title').value;
@@ -828,10 +934,7 @@ async function connectGitHub() {
             try {
                 const response = await fetch('/api/github/pr', {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'X-GitHub-Token': currentToken
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ owner, repo, title, body, head, base })
                 });
                 
@@ -841,7 +944,7 @@ async function connectGitHub() {
                     alert('✅ PR created! URL: ' + result.html_url);
                     loadActivity();
                 } else {
-                    alert('❌ Error: ' + (result.message || 'Unknown error'));
+                    alert('❌ Error: ' + (result.error || 'Unknown error'));
                 }
             } catch (e) {
                 alert('❌ Failed to create PR');

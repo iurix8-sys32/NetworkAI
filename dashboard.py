@@ -130,11 +130,50 @@ def get_github_client(token):
 def index():
     return render_template('dashboard.html')
 
+@app.route('/api/init', methods=['POST'])
+def init_token():
+    """Initialize/verify token with PIN"""
+    data = request.json
+    pin = data.get('pin', '')
+    
+    if pin != "251172":
+        return jsonify({"error": "Invalid PIN"})
+    
+    # Store token encrypted
+    token = data.get('token', '')
+    if token:
+        import token_storage
+        token_storage.store_token(token)
+        log_activity("system", "Token encrypted & stored", "PIN verified")
+        return jsonify({"status": "success", "message": "Token stored securely"})
+    
+    return jsonify({"error": "No token provided"})
+
+@app.route('/api/unlock', methods=['POST'])
+def unlock_token():
+    """Unlock token with PIN"""
+    data = request.json
+    pin = data.get('pin', '')
+    
+    if pin != "251172":
+        return jsonify({"error": "Invalid PIN"})
+    
+    import token_storage
+    token = token_storage.get_token()
+    
+    if token:
+        log_activity("system", "Token unlocked", "Session started")
+        return jsonify({"status": "success", "token": token})
+    
+    return jsonify({"error": "No token stored"})
+
 @app.route('/api/status')
 def status():
     """System status"""
     user = None
-    token = request.headers.get('X-GitHub-Token')
+    import token_storage
+    token = token_storage.get_token()
+    
     if token:
         client = get_github_client(token)
         try:
@@ -146,7 +185,8 @@ def status():
         "github_connected": user is not None,
         "github_user": user.get("login") if user else None,
         "activity_count": len(activity_log),
-        "token_set": bool(token)
+        "token_stored": token_storage.is_token_stored(),
+        "token_unlocked": bool(token)
     })
 
 @app.route('/api/activity')
@@ -157,9 +197,10 @@ def activity():
 @app.route('/api/github/repos')
 def list_repos():
     """List user repos"""
-    token = request.headers.get('X-GitHub-Token') or request.args.get('token', '')
+    import token_storage
+    token = token_storage.get_token()
     if not token:
-        return jsonify({"error": "No token provided"})
+        return jsonify({"error": "Token locked. Enter PIN to unlock."})
     
     client = get_github_client(token)
     try:
@@ -171,9 +212,10 @@ def list_repos():
 @app.route('/api/github/repo/<owner>/<repo>')
 def repo_info(owner, repo):
     """Get repo info"""
-    token = request.headers.get('X-GitHub-Token') or request.args.get('token', '')
+    import token_storage
+    token = token_storage.get_token()
     if not token:
-        return jsonify({"error": "No token provided"})
+        return jsonify({"error": "Token locked. Enter PIN to unlock."})
     
     client = get_github_client(token)
     try:
@@ -185,9 +227,10 @@ def repo_info(owner, repo):
 @app.route('/api/github/repo/<owner>/<repo>/contents')
 def repo_contents(owner, repo):
     """List repo contents"""
-    token = request.headers.get('X-GitHub-Token') or request.args.get('token', '')
+    import token_storage
+    token = token_storage.get_token()
     if not token:
-        return jsonify({"error": "No token provided"})
+        return jsonify({"error": "Token locked. Enter PIN to unlock."})
     
     path = request.args.get('path', '')
     client = get_github_client(token)
@@ -200,9 +243,10 @@ def repo_contents(owner, repo):
 @app.route('/api/github/file/<owner>/<repo>/<path:path>')
 def get_file(owner, repo, path):
     """Get file contents"""
-    token = request.headers.get('X-GitHub-Token') or request.args.get('token', '')
+    import token_storage
+    token = token_storage.get_token()
     if not token:
-        return jsonify({"error": "No token provided"})
+        return jsonify({"error": "Token locked. Enter PIN to unlock."})
     
     client = get_github_client(token)
     try:
@@ -214,11 +258,12 @@ def get_file(owner, repo, path):
 @app.route('/api/github/edit', methods=['POST'])
 def edit_file():
     """Create or update a file"""
-    data = request.json
-    token = data.get('token') or request.headers.get('X-GitHub-Token')
+    import token_storage
+    token = token_storage.get_token()
     if not token:
-        return jsonify({"error": "No token provided"})
+        return jsonify({"error": "Token locked. Enter PIN to unlock."})
     
+    data = request.json
     client = get_github_client(token)
     try:
         result = client.create_or_update_file(
@@ -237,11 +282,12 @@ def edit_file():
 @app.route('/api/github/branch', methods=['POST'])
 def create_branch():
     """Create a branch"""
-    data = request.json
-    token = data.get('token') or request.headers.get('X-GitHub-Token')
+    import token_storage
+    token = token_storage.get_token()
     if not token:
-        return jsonify({"error": "No token provided"})
+        return jsonify({"error": "Token locked. Enter PIN to unlock."})
     
+    data = request.json
     client = get_github_client(token)
     try:
         result = client.create_branch(
@@ -259,11 +305,12 @@ def create_branch():
 @app.route('/api/github/pr', methods=['POST'])
 def create_pr():
     """Create a pull request"""
-    data = request.json
-    token = data.get('token') or request.headers.get('X-GitHub-Token')
+    import token_storage
+    token = token_storage.get_token()
     if not token:
-        return jsonify({"error": "No token provided"})
+        return jsonify({"error": "Token locked. Enter PIN to unlock."})
     
+    data = request.json
     client = get_github_client(token)
     try:
         result = client.create_pull_request(
@@ -283,11 +330,12 @@ def create_pr():
 @app.route('/api/github/clone', methods=['POST'])
 def clone_repo():
     """Clone a repository"""
-    data = request.json
-    token = data.get('token') or request.headers.get('X-GitHub-Token')
+    import token_storage
+    token = token_storage.get_token()
     if not token:
-        return jsonify({"error": "No token provided"})
+        return jsonify({"error": "Token locked. Enter PIN to unlock."})
     
+    data = request.json
     owner = data.get('owner')
     repo = data.get('repo')
     clone_path = data.get('path', f'/tmp/{repo}')
@@ -315,11 +363,12 @@ def clone_repo():
 @app.route('/api/github/push', methods=['POST'])
 def push_changes():
     """Push changes to repo"""
-    data = request.json
-    token = data.get('token') or request.headers.get('X-GitHub-Token')
+    import token_storage
+    token = token_storage.get_token()
     if not token:
-        return jsonify({"error": "No token provided"})
+        return jsonify({"error": "Token locked. Enter PIN to unlock."})
     
+    data = request.json
     owner = data.get('owner')
     repo = data.get('repo')
     branch = data.get('branch', 'main')
