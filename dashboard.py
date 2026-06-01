@@ -26,6 +26,7 @@ log_lock = Lock()
 
 # Chat history file
 CHAT_HISTORY_FILE = '/tmp/ai_chat_history.json'
+CONVERSATION_CONTEXT_FILE = '/tmp/ai_context.json'
 
 def load_chat_history():
     """Load chat history from file"""
@@ -44,6 +45,37 @@ def save_chat_history(history):
             json.dump(history[-100:], f)  # Keep last 100 entries
     except:
         pass
+
+def load_conversation_context():
+    """Load conversation context for AI memory"""
+    try:
+        if os.path.exists(CONVERSATION_CONTEXT_FILE):
+            with open(CONVERSATION_CONTEXT_FILE, 'r') as f:
+                return json.load(f)
+    except:
+        pass
+    return []
+
+def save_conversation_context(context):
+    """Save conversation context"""
+    try:
+        with open(CONVERSATION_CONTEXT_FILE, 'w') as f:
+            json.dump(context[-50:], f)  # Keep last 50 exchanges
+    except:
+        pass
+
+def get_user_context():
+    """Get GitHub user context for AI"""
+    try:
+        import token_storage
+        token = token_storage.get_token()
+        if token:
+            client = get_github_client(token)
+            user = client.get_user()
+            return user.get('login', 'User')
+    except:
+        pass
+    return 'User'
 
 def log_activity(action_type, title, details=""):
     """Log AI activity"""
@@ -190,25 +222,41 @@ def unlock_token():
 
 @app.route('/api/status')
 def status():
-    """System status"""
-    user = None
+    """System status - JSON output for debugging"""
     import token_storage
+    
+    token_unlocked = False
+    user_info = None
+    
     token = token_storage.get_token()
-    
     if token:
-        client = get_github_client(token)
+        token_unlocked = True
         try:
-            user = client.get_user()
-        except:
-            pass
+            client = get_github_client(token)
+            user_info = client.get_user()
+        except Exception as e:
+            user_info = {"error": str(e)}
     
-    return jsonify({
-        "github_connected": user is not None,
-        "github_user": user.get("login") if user else None,
-        "activity_count": len(activity_log),
+    status_data = {
         "token_stored": token_storage.is_token_stored(),
-        "token_unlocked": bool(token)
-    })
+        "token_unlocked": token_unlocked,
+        "github_user": user_info.get('login') if user_info and not user_info.get('error') else None,
+        "github_error": user_info.get('error') if user_info and user_info.get('error') else None,
+        "activity_count": len(activity_log),
+        "conversation_count": len(load_conversation_context()),
+        "ollama_running": check_ollama_running()
+    }
+    
+    return jsonify(status_data)
+
+def check_ollama_running():
+    """Check if Ollama is running"""
+    try:
+        import requests as req
+        resp = req.get('http://localhost:11434/api/tags', timeout=5)
+        return resp.status_code == 200
+    except:
+        return False
 
 @app.route('/api/activity')
 def activity():
@@ -439,52 +487,70 @@ def push_changes():
 
 @app.route('/api/ai/command', methods=['POST'])
 def ai_command():
-    """Execute AI command"""
+    """Execute AI command with conversation memory"""
     data = request.json
     command = data.get('command', '')
     
-    log_activity("ai_command", f"AI Command: {command[:50]}...", command)
+    log_activity("ai_command", f"You: {command[:50]}...", command)
     
-    # Try Ollama first
-    try:
-        import token_storage
-        token = token_storage.get_token()
-        if token:
-            # Get user info for context
-            client = get_github_client(token)
-            user = client.get_user()
-            username = user.get('login', 'User')
-        else:
-            username = 'User'
-    except:
-        username = 'User'
+    # Load conversation history for context
+    context = load_conversation_context()
     
-    # Call Ollama for actual AI response
+    # Get user context
+    username = get_user_context()
+    
+    # Build conversation string for context
+    conversation_history = ""
+    for item in context[-10:]:  # Last 10 exchanges
+        conversation_history += f"Previous: {item.get('question', '')}\nAI: {item.get('answer', '')}\n"
+    
+    # Call Ollama with conversation context
     try:
         import requests as req
+        
+        prompt = f"""You are NetworkAI assistant for {username}. 
+        
+Previous conversation:
+{conversation_history}
+
+Current question: {command}
+
+Remember: You can access GitHub (repos, files, branches, PRs), analyze code, generate code, and help with various tasks. Stay in character as a helpful assistant.
+"""
+        
         ollama_resp = req.post(
             'http://localhost:11434/api/generate',
             json={
                 'model': 'llama3.2',
-                'prompt': f"You are NetworkAI assistant for {username}. Respond to: {command}",
+                'prompt': prompt,
                 'stream': False
             },
-            timeout=60
+            timeout=120
         )
         
         if ollama_resp.status_code == 200:
             result = ollama_resp.json()
             ai_response = result.get('response', 'No response')
-            log_activity("ai_response", f"Response generated", ai_response[:100])
+            
+            # Save to conversation history
+            context.append({
+                'question': command,
+                'answer': ai_response,
+                'timestamp': datetime.now().isoformat()
+            })
+            save_conversation_context(context)
+            
+            log_activity("ai_response", f"AI: {ai_response[:50]}...", ai_response)
+            
             return jsonify({
                 "status": "success",
                 "action": "ai_response",
                 "message": ai_response
             })
     except Exception as e:
-        pass
+        log_activity("error", f"Ollama error: {str(e)[:50]}", str(e))
     
-    # Fallback simulation
+    # Fallback
     response = simulate_ai_action(command)
     return jsonify(response)
 

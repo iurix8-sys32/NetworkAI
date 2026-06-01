@@ -796,13 +796,34 @@
                 
                 document.getElementById('activity-count').textContent = data.activity_count;
                 
-                // Update lock status based on server state
-                if (data.token_stored && data.token_unlocked) {
+                // Update status display
+                let statusText = '';
+                if (data.ollama_running) {
+                    statusText += '🤖 Ollama ';
+                } else {
+                    statusText += '⚪ Ollama offline ';
+                }
+                
+                if (data.token_unlocked && data.github_user) {
+                    statusText += '| 🟢 @' + data.github_user;
+                } else if (data.token_stored) {
+                    statusText += '| 🟡 Token stored (locked)';
+                } else {
+                    statusText += '| 🔴 No token';
+                }
+                
+                if (data.github_error) {
+                    statusText += ' | ⚠️ GitHub: ' + data.github_error;
+                }
+                
+                document.getElementById('github-status').textContent = statusText;
+                
+                // Update lock status
+                if (data.token_unlocked) {
                     isUnlocked = true;
                     document.getElementById('pin-overlay').classList.add('hidden');
                     const statusEl = document.getElementById('github-status');
                     statusEl.className = 'status-item connected';
-                    statusEl.innerHTML = '🟢 Connected';
                 } else {
                     isUnlocked = false;
                 }
